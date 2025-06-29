@@ -3,36 +3,33 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Buddhabrot cuadrado centrado</title>
+    <title>🥦</title>
     <link rel="icon" href="s-l1200.ico" type="image/x-icon">
     <style>
         html,
         body {
             margin: 0;
             padding: 0;
-            background: #000;
-            width: 100vw;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        body {
             width: 100vw;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             background: #000;
+            overflow: hidden;
         }
 
         #buddhabrot {
-            display: block;
             background: #000;
-            /* Sin max-width ni height: 100vh ni object-fit */
             box-shadow: 0 0 64px #000 inset;
+            /* 1) Siempre cuadrado según el menor de ancho/alto */
+            width: 100vmin;
+            height: 100vmin;
+            display: block;
         }
 
         #loading {
+            /* …igual que antes… */
             position: fixed;
             z-index: 10;
             top: 0;
@@ -45,6 +42,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            color: #fff;
+            background: #000;
             font-size: 3vw;
             font-variant-numeric: tabular-nums;
             text-shadow: 0 0 32px #fff, 0 0 8px #ffc300;
@@ -117,7 +116,9 @@
             loader.classList.add("hidden");
             setTimeout(() => loader.style.display = 'none', 1200);
         }
+
         let rendering = false;
+
         function startBuddhabrot() {
             rendering = true;
             const { size } = getCanvasSize();
@@ -173,6 +174,7 @@
             }
             paso();
         }
+
         function renderizar(acc, ctx, size) {
             showLoading(100);
             setTimeout(() => {
