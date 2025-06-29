@@ -71,11 +71,11 @@
                 .test(navigator.userAgent)
                 || window.innerWidth < 700;
         }
-
+        const resolutionScale = 2;
         function getCanvasSize() {
             const rawSizeCss = Math.min(window.innerWidth, window.innerHeight);
             const pixelRatio = window.devicePixelRatio || 1;
-            let size = Math.floor(rawSizeCss * pixelRatio);
+            let size = Math.floor(rawSizeCss * pixelRatio * resolutionScale);
             const maxDim = isMobile() ? 2048 : 4096;
             if (size > maxDim) size = maxDim;
             return { size, rawSizeCss };
@@ -157,8 +157,8 @@
                     if (esc && iter > minIter) {
                         // 2) mapping CORRECTO: real→X, imag→Y invertida
                         for (const [zr, zi] of zs) {
-                            const x = Math.floor((zr - plane.reMin) / (plane.reMax - plane.reMin) * size);
-                            const y = size - 1 - Math.floor((zi - plane.imMin) / (plane.imMax - plane.imMin) * size);
+                            const y = Math.floor((zr - plane.reMin) / (plane.reMax - plane.reMin) * size);
+                            const x = size - 1 - Math.floor((zi - plane.imMin) / (plane.imMax - plane.imMin) * size);
                             if (x >= 0 && x < size && y >= 0 && y < size) {
                                 acc[y * size + x]++;
                             }
@@ -209,7 +209,7 @@
 
                 rendering = false;
                 hideLoading();
-            }, 30);
+            }, 10);
         }
 
         // Arranca
