@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Buddhabrot ultra HD</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #buddhabrot {
+            width: 100vw;
+            height: 100vh;
+            max-width: 100vw;
+            max-height: 100vh;
+            display: block;
+            object-fit: contain;
+            background: #000;
+            z-index: 1;
+            position: relative;
+        }
+
+        #loading {
+            position: fixed;
+            z-index: 10;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            color: #fff;
+            font-family: 'Noto Sans', Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2vw;
+            letter-spacing: 0.15em;
+            text-shadow: 0 0 32px #fff, 0 0 8px #ffc300;
+            transition: opacity 0.5s;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        #loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1.2s;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loading">Calculando Buddhabrot…</div>
+    <canvas id="buddhabrot"></canvas>
+    <script>
+        // --- CONFIGURACIÓN ---
+        function getCanvasSize() {
+            // Lado máximo (ultra-HD hasta 4096x4096, baja si va lento)
+            const maxCanvas = 4096;
+            const minCanvas = 1024;
+            const pixelRatio = window.devicePixelRatio || 1.5;
+            const side = Math.floor(Math.min(window.innerWidth, window.innerHeight) * pixelRatio);
+            return Math.max(minCanvas, Math.min(maxCanvas, side));
+        }
+
+        // Gradiente ultra brillante y saturado (azul→blanco→amarillo→rojo)
+        function colorGrad(val) {
+            // val: [0..1]
+            if (val < 0.20) {
+                // negro puro → azul eléctrico
+                let t = val / 0.20;
+                return [
+                    0 + t * 60,     // R: 0→60
+                    0 + t * 100,    // G: 0→100
+                    0 + t * 255     // B: 0→255
+                ];
+            } else if (val < 0.45) {
+                // azul eléctrico → blanco
+                let t = (val - 0.20) / 0.25;
+                return [
+                    60 + t * 195,   // R: 60→255
+                    100 + t * 155,  // G: 100→255
+                    255           // B: 255
+                ];
+            } else if (val < 0.80) {
+                // blanco → amarillo intenso
+                let t = (val - 0.45) / 0.35;
+                return [
+                    255,
+                    255,
+                    255 - t * 192   // B: 255→63
+                ];
+            } else {
+                // amarillo → rojo brillante
+                let t = (val - 0.80) / 0.20;
+                return [
+                    255,
+                    255 - t * 255, // G: 255→0
+                    63 - t * 63   // B: 63→0
+                ];
+            }
+        }
+
+        function toPixel(z_re, z_im, size) {
+            // Mapea [-2,1]x[-1.1,1.2] a cuadrado size x size
+            const x = Math.floor((z_re + 2.0) / 3.0 * size);
+            const y = Math.floor((1.1 - z_im) / 2.3 * size);
+            return { x, y };
+        }
+
+        function showLoading(msg = "Calculando Buddhabrot…") {
+            const loader = document.getElementById("loading");
+            loader.textContent = msg;
+            loader.classList.remove("hidden");
+        }
+        function hideLoading() {
+            const loader = document.getElementById("loading");
+            loader.classList.add("hidden");
+            setTimeout(() => loader.style.display = 'none', 1300);
+        }
+
+        function startBuddhabrot() {
+            showLoading();
+            setTimeout(() => {
+                const SIZE = getCanvasSize();
+                const canvas = document.getElementById('buddhabrot');
+                canvas.width = SIZE;
+                canvas.height = SIZE;
+                canvas.style.width = "100vw";
+                canvas.style.height = "100vh";
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, SIZE, SIZE);
+
+                // ¡Resolución brutal y muchos puntos!
+                const maxIter = 1500;
+                const muestras = Math.max(2200000, Math.floor(SIZE * SIZE * 1.3)); // 2.2M+
+                const bailout = 4;
+                const minIterEsc = 14;
+
+                let acc = new Uint32Array(SIZE * SIZE);
+                let procesados = 0;
+                let lotes = 100;
+                let batch = Math.floor(muestras / lotes);
+
+                function procesarLote() {
+                    for (let i = 0; i < batch && procesados < muestras; i++, procesados++) {
+                        let c_re = Math.random() * 3 - 2;
+                        let c_im = Math.random() * 2.3 - 1.1;
+                        let zs = [];
+                        let z_re = 0, z_im = 0;
+                        let escaped = false, iter = 0;
+                        while (iter < maxIter) {
+                            zs.push([z_re, z_im]);
+                            let z_re_new = z_re * z_re - z_im * z_im + c_re;
+                            let z_im_new = 2 * z_re * z_im + c_im;
+                            z_re = z_re_new;
+                            z_im = z_im_new;
+                            if (z_re * z_re + z_im * z_im > bailout) {
+                                escaped = true;
+                                break;
+                            }
+                            iter++;
+                        }
+                        if (escaped && iter > minIterEsc) {
+                            for (let [zr, zi] of zs) {
+                                let { x, y } = toPixel(zr, zi, SIZE);
+                                if (x >= 0 && x < SIZE && y >= 0 && y < SIZE)
+                                    acc[y * SIZE + x]++;
+                            }
+                        }
+                    }
+                    showLoading(`Calculando Buddhabrot… (${Math.round(procesados / muestras * 100)}%)`);
+                    if (procesados < muestras) {
+                        setTimeout(procesarLote, 1);
+                    } else {
+                        renderizar(acc, ctx, SIZE);
+                    }
+                }
+                procesarLote();
+            }, 100); // Espera breve para mostrar el loader
+        }
+
+        function renderizar(acc, ctx, SIZE) {
+            showLoading("Renderizando…");
+            setTimeout(() => {
+                // Imagen cuadrada
+                let max = 1;
+                for (let i = 0; i < acc.length; i++) max = Math.max(max, acc[i]);
+                let img = ctx.createImageData(SIZE, SIZE);
+                for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
+                    let val = acc[y * SIZE + x];
+                    let norm = val ? Math.log(val) / Math.log(max) : 0; // [0,1]
+                    let [r, g, b] = colorGrad(norm);
+                    let i = (y * SIZE + x) * 4;
+                    img.data[i] = r;
+                    img.data[i + 1] = g;
+                    img.data[i + 2] = b;
+                    img.data[i + 3] = Math.max(110, 255 * Math.pow(norm, 0.85));
+                }
+                // Rotar la imagen 90º a la derecha
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = SIZE;
+                tempCanvas.height = SIZE;
+                tempCanvas.getContext('2d').putImageData(img, 0, 0);
+                ctx.save();
+                ctx.clearRect(0, 0, SIZE, SIZE);
+                ctx.translate(SIZE / 2, SIZE / 2);
+                ctx.rotate(Math.PI / 2);
+                ctx.drawImage(tempCanvas, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
+                ctx.restore();
+
+                hideLoading();
+            }, 50); // Espera breve para mostrar el loader
+        }
+
+        // Redibuja siempre al redimensionar
+        function renderPage() {
+            document.getElementById("loading").style.display = 'flex';
+            document.getElementById("loading").classList.remove("hidden");
+            startBuddhabrot();
+        }
+        window.addEventListener('DOMContentLoaded', renderPage);
+        window.addEventListener('resize', renderPage);
+    </script>
+</body>
+
+</html>
