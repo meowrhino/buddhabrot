@@ -28,6 +28,12 @@
             display: block;
         }
 
+        #buddhabrot {
+            image-rendering: optimizeSpeed;
+            image-rendering: pixelated;
+            /* para que no lo difumine */
+        }
+
         #loading {
             /* …igual que antes… */
             position: fixed;
@@ -59,6 +65,12 @@
             pointer-events: none;
             transition: opacity 1.2s;
         }
+
+        @media (max-width: 768px) {
+            #buddhabrot {
+                filter: brightness(1.6) contrast(1.2);
+            }
+        }
     </style>
 </head>
 
@@ -71,7 +83,7 @@
                 .test(navigator.userAgent)
                 || window.innerWidth < 700;
         }
-        const resolutionScale = 1.2;
+        const resolutionScale = isMobile() ? 1.4 : 1.0; // más resolución en móvil
         function getCanvasSize() {
             const rawSizeCss = Math.min(window.innerWidth, window.innerHeight);
             const pixelRatio = window.devicePixelRatio || 1;
@@ -84,9 +96,9 @@
         function colorGrad(val) {
             const stops = [
                 { pos: 0.0, color: [0, 0, 0] },        // negro
-                { pos: 0.2, color: [60, 100, 255] },   // azul
-                { pos: 0.4, color: [255, 255, 255] }, // blanco
-                { pos: 0.8, color: [255, 255, 63] },   // amarillo
+                { pos: 0.2, color: [200, 200, 255] },   // azul
+                { pos: 0.4, color: [255, 210, 0] }, // blanco
+                { pos: 0.8, color: [255, 255, 255] },   // amarillo
                 { pos: 1.0, color: [255, 0, 0] }       // rojo
             ];
 
@@ -108,13 +120,8 @@
             let reMin = -2, reMax = 1;
             let imSpan = reMax - reMin;
             let imCenter = -0.02;
-
-            // Overscan inferior: añadimos un 5% extra por abajo
-            const overscanBottom = 0.05 * imSpan;
-
-            let imMin = imCenter - imSpan / 2 - overscanBottom;
+            let imMin = imCenter - imSpan / 2;
             let imMax = imCenter + imSpan / 2;
-
             return { reMin, reMax, imMin, imMax };
         }
 
@@ -134,18 +141,25 @@
 
         function startBuddhabrot() {
             rendering = true;
-            const { size } = getCanvasSize();
-            const canvas = document.getElementById('buddhabrot');
-            canvas.width = canvas.height = size;
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, size, size);
 
-            const plane = getComplexPlane();
-            const maxIter = isMobile() ? 1200 : 3000;          // más iteraciones
-            const muestras = Math.floor(size * size * (isMobile() ? 0.35 : 1.5)); // más samples
+            const canvas = document.getElementById('buddhabrot');
+            const ctx = canvas.getContext('2d');
+
+            const { size, rawSizeCss } = getCanvasSize();
+            canvas.width = canvas.height = size;
+
+            // Mantiene el tamaño visual correcto
+            canvas.style.width = rawSizeCss + "px";
+            canvas.style.height = rawSizeCss + "px";
+
+            const side = size;
+
+            const plane = getComplexPlane(side);
+            const maxIter = isMobile() ? 1800 : 3000;
+            const muestras = Math.floor(side * side * (isMobile() ? 2.0 : 1.2)); // más densidad en móvil
             const bailout = 4;
             const minIter = 10;
-            let acc = new Uint32Array(size * size);
+            let acc = new Uint32Array(side * side);
             let done = 0;
             const batches = 200;
             const batchSize = Math.floor(muestras / batches);
@@ -163,17 +177,17 @@
                         const ni = 2 * z_re * z_im + c_im;
                         z_re = nr; z_im = ni;
                         if (z_re * z_re + z_im * z_im > bailout) {
-                            esc = true; break;
+                            esc = true;
+                            break;
                         }
                         iter++;
                     }
                     if (esc && iter > minIter) {
-                        // 2) mapping CORRECTO: real→X, imag→Y invertida
                         for (const [zr, zi] of zs) {
-                            const y = Math.floor((zr - plane.reMin) / (plane.reMax - plane.reMin) * size);
-                            const x = size - 1 - Math.floor((zi - plane.imMin) / (plane.imMax - plane.imMin) * size);
-                            if (x >= 0 && x < size && y >= 0 && y < size) {
-                                acc[y * size + x]++;
+                            const y = Math.floor((zr - plane.reMin) / (plane.reMax - plane.reMin) * side);
+                            const x = side - 1 - Math.floor((zi - plane.imMin) / (plane.imMax - plane.imMin) * side);
+                            if (x >= 0 && x < side && y >= 0 && y < side) {
+                                acc[y * side + x]++;
                             }
                         }
                     }
@@ -182,24 +196,24 @@
                 if (done < muestras && rendering) {
                     setTimeout(paso, 1);
                 } else {
-                    renderizar(acc, ctx, size);
+                    renderizar(acc, ctx, side);
                 }
             }
             paso();
         }
 
-        function renderizar(acc, ctx, size) {
+        function renderizar(acc, ctx, side) {
             showLoading(100);
             setTimeout(() => {
-                // 3) Normaliza + gamma
                 let maxA = acc.reduce((a, v) => v > a ? v : a, 1);
-                const img = ctx.createImageData(size, size);
-                for (let y = 0; y < size; y++) {
-                    for (let x = 0; x < size; x++) {
-                        const i = (y * size + x) * 4;
-                        const v = acc[y * size + x];
+                const img = ctx.createImageData(side, side);
+                for (let y = 0; y < side; y++) {
+                    for (let x = 0; x < side; x++) {
+                        const i = (y * side + x) * 4;
+                        const v = acc[y * side + x];
                         let n = v ? Math.log(v) / Math.log(maxA) : 0;
-                        n = Math.pow(n, 0.6);  // gamma
+
+                        const gammaBase = isMobile() ? 0.55 : 0.75; // más punch en móvil                
                         const [r, g, b] = colorGrad(n);
                         img.data[i] = r;
                         img.data[i + 1] = g;
@@ -207,16 +221,15 @@
                         img.data[i + 3] = Math.max(110, 255 * n);
                     }
                 }
-                // 4) pinta base
+
                 ctx.putImageData(img, 0, 0);
 
-                // 5) Bloom para halo suave
+                // Bloom
                 const buf = document.createElement('canvas');
-                buf.width = buf.height = size;
+                buf.width = buf.height = side;
                 buf.getContext('2d').putImageData(img, 0, 0);
                 ctx.save();
-                //blur:
-                ctx.globalAlpha = 0.1;
+                ctx.globalAlpha = isMobile() ? 0.12 : 0.22;
                 ctx.filter = 'blur(6px)';
                 ctx.drawImage(buf, 0, 0);
                 ctx.restore();
