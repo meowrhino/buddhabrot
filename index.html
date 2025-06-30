@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <title>🥦</title>
     <link rel="icon" href="s-l1200.ico" type="image/x-icon">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         html,
         body {
@@ -22,7 +23,6 @@
         #buddhabrot {
             background: #000;
             box-shadow: 0 0 64px #000 inset;
-            /* 1) Siempre cuadrado según el menor de ancho/alto */
             width: 100vmin;
             height: 100vmin;
             display: block;
@@ -71,7 +71,7 @@
                 .test(navigator.userAgent)
                 || window.innerWidth < 700;
         }
-        const resolutionScale = 2;
+        const resolutionScale = 1.2;
         function getCanvasSize() {
             const rawSizeCss = Math.min(window.innerWidth, window.innerHeight);
             const pixelRatio = window.devicePixelRatio || 1;
@@ -82,29 +82,42 @@
         }
 
         function colorGrad(val) {
-            if (val < 0.20) {
-                let t = val / 0.20;
-                return [0 + t * 60, 0 + t * 100, 0 + t * 255];
-            } else if (val < 0.45) {
-                let t = (val - 0.20) / 0.25;
-                return [60 + t * 195, 100 + t * 155, 255];
-            } else if (val < 0.80) {
-                let t = (val - 0.45) / 0.35;
-                return [255, 255, 255 - t * 192];
-            } else {
-                let t = (val - 0.80) / 0.20;
-                return [255, 255 - t * 255, 63 - t * 63];
+            const stops = [
+                { pos: 0.0, color: [0, 0, 0] },        // negro
+                { pos: 0.2, color: [60, 100, 255] },   // azul
+                { pos: 0.4, color: [255, 255, 255] }, // blanco
+                { pos: 0.8, color: [255, 255, 63] },   // amarillo
+                { pos: 1.0, color: [255, 0, 0] }       // rojo
+            ];
+
+            for (let i = 0; i < stops.length - 1; i++) {
+                const a = stops[i], b = stops[i + 1];
+                if (val >= a.pos && val <= b.pos) {
+                    const t = (val - a.pos) / (b.pos - a.pos);
+                    const r = a.color[0] + t * (b.color[0] - a.color[0]);
+                    const g = a.color[1] + t * (b.color[1] - a.color[1]);
+                    const b_ = a.color[2] + t * (b.color[2] - a.color[2]);
+                    return [r, g, b_];
+                }
             }
+
+            return stops[stops.length - 1].color; // fallback
         }
+
         function getComplexPlane(size) {
             let reMin = -2, reMax = 1;
-            // Calcula el centro y el span para centrar el Buda y evitar el corte abajo
-            let imCenter = 0.05;  // centro vertical típico del buddhabrot
             let imSpan = reMax - reMin;
-            let imMin = imCenter - imSpan / 2;
+            let imCenter = -0.02;
+
+            // Overscan inferior: añadimos un 5% extra por abajo
+            const overscanBottom = 0.05 * imSpan;
+
+            let imMin = imCenter - imSpan / 2 - overscanBottom;
             let imMax = imCenter + imSpan / 2;
+
             return { reMin, reMax, imMin, imMax };
         }
+
         function showLoading(percent) {
             const loader = document.getElementById("loading");
             loader.textContent = percent === undefined ? "" : `${percent}%`;
@@ -202,7 +215,8 @@
                 buf.width = buf.height = size;
                 buf.getContext('2d').putImageData(img, 0, 0);
                 ctx.save();
-                ctx.globalAlpha = 0.12;
+                //blur:
+                ctx.globalAlpha = 0.1;
                 ctx.filter = 'blur(6px)';
                 ctx.drawImage(buf, 0, 0);
                 ctx.restore();
@@ -218,9 +232,18 @@
             startBuddhabrot();
         }
         window.addEventListener('DOMContentLoaded', renderPage);
+        // Solo redibuja si se ha cambiado el tamaño real (no solo zoom)
+        let resizeTimeout;
         window.addEventListener('resize', () => {
-            if (window._t) clearTimeout(window._t);
-            window._t = setTimeout(renderPage, 1200);
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                const { size } = getCanvasSize();
+                if (size !== lastSize) {
+                    lastSize = size;
+                    showLoading(0);
+                    startBuddhabrot();
+                }
+            }, 500); // espera medio segundo después del último resize
         });
     </script>
 </body>
